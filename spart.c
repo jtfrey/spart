@@ -256,8 +256,8 @@ __spart_printer_text_header(
 {
     spart_printer_text_context_t   *CONTEXT = (spart_printer_text_context_t*)context;
 
-    printf("%*s     FREE    TOTAL     FREE    TOTAL RESOURCE    OTHER   MIN   MAX  MAXJOBTIME    CPUS    NODE      FREE\n", CONTEXT->max_part_name_len, "QUEUE");
-    printf("%*s     CPUS     CPUS    NODES    NODES  PENDING  PENDING NODES NODES   DAY-HR:MN PERNODE  MEM(GB)  MEM(GB)\n", CONTEXT->max_part_name_len, "PARTITION");
+    printf("%-*s     FREE    TOTAL     FREE    TOTAL RESOURCE    OTHER   MIN   MAX  MAXJOBTIME    CPUS    NODE      FREE\n", CONTEXT->max_part_name_len, "");
+    printf("%-*s     CPUS     CPUS    NODES    NODES  PENDING  PENDING NODES NODES   DAY-HR:MN PERNODE  MEM(GB)  MEM(GB)\n", CONTEXT->max_part_name_len, "PARTITION");
 }
 
 int
@@ -269,7 +269,7 @@ __spart_printer_text_print(
 {
     spart_printer_text_context_t   *CONTEXT = (spart_printer_text_context_t*)context;
 
-    printf ("%*s %8lu %8lu %8lu %8lu %8lu %8lu %5lu ",
+    printf ("%-*s %8lu %8lu %8lu %8lu %8lu %8lu %5lu ",
             CONTEXT->max_part_name_len,
             part_data->partition->name,
             (unsigned long)part_data->free_cpu,
@@ -322,7 +322,7 @@ __spart_printer_parseable_header(
     const void      *context
 )
 {
-    printf("QUEUE PARTITION|FREE CPUS|TOTAL CPUS|FREE NODES|TOTAL NODES|RESOURCE PENDING, CPUS|OTHER PENDING, CPUS|RESOURCE PENDING, JOBS|OTHER PENDING, JOBS|MIN NODES|MAX NODES|MAXJOBTIME|CPUS PERNODE|NODE MEM|FREE MEM|TOTAL MEM\n");
+    printf("PARTITION|FREE CPUS|TOTAL CPUS|FREE NODES|TOTAL NODES|RESOURCE PENDING, CPUS|OTHER PENDING, CPUS|RESOURCE PENDING, JOBS|OTHER PENDING, JOBS|MIN NODES|MAX NODES|MAXJOBTIME|CPUS PERNODE|NODE MEM|FREE MEM|TOTAL MEM\n");
 }
 
 int
