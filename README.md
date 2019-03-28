@@ -87,6 +87,8 @@ Install the project...
 -- Set runtime path of "/opt/shared/slurm/add-ons/bin/spart" to "/opt/shared/slurm/current/lib"
 ```
 
+If Slurm is installed in `/usr/local` or the standard system location then the SLURM_PREFIX is probably not necessary.
+
 ## Output formats
 
 The code includes a modular design for outputting the partition summaries.  The original format is presented in the `spart_printer_text` set of functions; it has been altered slightly to size the leading column to meet the maximum partition name length.
