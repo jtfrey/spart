@@ -93,6 +93,6 @@ If Slurm is installed in `/usr/local` or the standard system location then the S
 
 The code includes a modular design for outputting the partition summaries.  The original format is presented in the `spart_printer_text` set of functions; it has been altered slightly to size the leading column to meet the maximum partition name length.
 
-The parsable text format (`spart_printer_parsable`) is similar to other Slurm parsable display formats:  values are displayed without whitespace padding with columns delimited by the vertical bar character.  A header row is included.
+The parseable text format (`spart_printer_parseable`) is similar to other Slurm parseable display formats:  values are displayed without whitespace padding with columns delimited by the vertical bar character.  A header row is included.
 
 The JSON and YAML formats (`spart_printer_json` and `spart_printer_yaml`) use key-value dictionaries to organize the information.  The top-level dictionary is keyed by partition name.
