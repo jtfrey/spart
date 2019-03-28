@@ -11,21 +11,31 @@ The spart command accepts a minimal number of options:
 $ spart --help
 usage:
 
-    ./spart {options}
+    spart {options}
 
   options:
 
-    -h/--help               display this help
+    -h/--help                  display this help
+    -f/--format <format>       display the parition summary in the
+                               specified format
+    -p/--partition <part-list> select specific partitions to include
+                               in the summary
 
-    output formats:
+    <format>:
 
-      -t/--text             as a column-aligned textual table
-      -p/--parsable         text delimited by vertical bar character
-                            (memory values in MB, times in minutes)
-      -j/--json             as a JSON dictionary keyed by partition name
-                            (memory values in MB, times in minutes)
-      -y/--yaml             as a YAML dictionary keyed by partition name
-                            (memory values in MB, times in minutes)
+      text                     column-aligned textual table
+      parseable, parsable      text delimited by vertical bar characters;
+                               memory values in MB, times in minutes
+      json                     JSON dictionary keyed by partition name;
+                               memory values in MB, times in minutes
+      yaml                     YAML dictionary keyed by partition name;
+                               memory values in MB, times in minutes
+
+    <part-list>:
+
+      one or more partition names separated only by commas (no whitespace)
+
+      e.g.  "part1,part2,part3"
 
 ```
 
@@ -48,14 +58,34 @@ PARTITION    CORES    CORES    NODES    NODES  PENDING  PENDING NODES NODES   DA
 
  ## Compiling
 
- If Slurm is installed in standard system locations, no additional flags should be necessary:
+The CMake build system can be used to drive configuration and compilation of the program:
 
- ```gcc -lslurm spart.c -o spart```
+```
+$ mkdir build
+$ cd build
+$ cmake -DSLURM_PREFIX=/opt/shared/slurm/current \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/opt/shared/slurm/add-ons \
+  ..
+-- The C compiler identification is GNU 4.8.5
+-- Check for working C compiler: /usr/bin/cc
+-- Check for working C compiler: /usr/bin/cc -- works
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Found SLURM: /opt/shared/slurm/current/lib/libslurm.so
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /opt/shared/slurm/add-ons/spart/build
 
- If Slurm is installed elsewhere, the path to the header files and libraries must be specified:
-
- ```gcc -I/path/to/slurm/install/include -o spart spart.c -L/path/to/slurm/install/lib -lslurm```
-
+$ make install
+[100%] Building C object CMakeFiles/spart.dir/spart.c.o
+Linking C executable spart
+[100%] Built target spart
+Install the project...
+-- Install configuration: "Release"
+-- Installing: /opt/shared/slurm/add-ons/bin/spart
+-- Set runtime path of "/opt/shared/slurm/add-ons/bin/spart" to "/opt/shared/slurm/current/lib"
+```
 
 ## Output formats
 
