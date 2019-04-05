@@ -16,6 +16,8 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include "version.h"
+
 #define SPART_CLI_OPT_HELP          'h'
 #define SPART_CLI_OPT_FORMAT        'f'
 #define SPART_CLI_OPT_PARTITION     'p'
@@ -518,7 +520,7 @@ usage(
     const char      *exe
 )
 {
-    printf( "usage:\n\n"
+    printf( "usage, version %s:\n\n"
             "    %s {options}\n\n"
             "  options:\n\n"
             "    -h/--help                  display this help\n"
@@ -542,6 +544,7 @@ usage(
             "      e.g.  \"part1,part2,part3\"\n"
             "\n"
             ,
+            spart_version_str,
             exe
         );
 }

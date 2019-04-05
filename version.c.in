@@ -1,0 +1,31 @@
+#include "version.h"
+
+#cmakedefine SPART_VERSION_MAJOR
+#ifndef SPART_VERSION_MAJOR
+#define SPART_VERSION_MAJOR 0
+#endif
+
+#cmakedefine SPART_VERSION_MINOR
+#ifndef SPART_VERSION_MINOR
+#define SPART_VERSION_MINOR 0
+#endif
+
+#cmakedefine SPART_VERSION_PATCH
+#ifndef SPART_VERSION_PATCH
+#define SPART_VERSION_PATCH 0
+#endif
+
+#cmakedefine SPART_VERSION_TWEAK
+#ifndef SPART_VERSION_TWEAK
+#define SPART_VERSION_TWEAK 0
+#endif
+
+const spart_version_t spart_version = {
+    .major = SPART_VERSION_MAJOR,
+    .minor = SPART_VERSION_MINOR,
+    .patch = SPART_VERSION_PATCH,
+    .tweak = SPART_VERSION_TWEAK
+};
+
+const char *spart_version_str = "@PROJECT_VERSION@";
+
