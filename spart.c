@@ -21,13 +21,17 @@
 #define SPART_CLI_OPT_HELP          'h'
 #define SPART_CLI_OPT_FORMAT        'f'
 #define SPART_CLI_OPT_PARTITION     'p'
+#define SPART_CLI_OPT_MINMAX        'm'
+#define SPART_CLI_OPT_SIUNITS       256
 
-#define SPART_CLI_OPTSTRING         "hf:p:"
+#define SPART_CLI_OPTSTRING         "hf:p:m"
 
 struct option spart_cli_opts[] = {
             { "help",           no_argument,        NULL,       SPART_CLI_OPT_HELP },
             { "format",         required_argument,  NULL,       SPART_CLI_OPT_FORMAT },
             { "partition",      required_argument,  NULL,       SPART_CLI_OPT_PARTITION },
+            { "minmax",         no_argument,        NULL,       SPART_CLI_OPT_MINMAX },
+            { "si-units",       no_argument,        NULL,       SPART_CLI_OPT_SIUNITS },
             { NULL,             0,                  NULL,       0   }
         };
 
@@ -60,8 +64,8 @@ spart_should_include_node(
  */
 typedef struct spart_data {
     partition_info_t        *partition;
-    unsigned long int       min_cpu, free_cpu;
-    unsigned long int       mem, min_mem, free_mem, total_mem;
+    unsigned long int       min_cpu, max_cpu, free_cpu;
+    unsigned long int       min_mem, max_mem, free_mem, total_mem;
     unsigned long int       free_node;
     unsigned long int       pending_jobs_resources, pending_jobs_other;
     unsigned long int       pending_cpus_resources, pending_cpus_other;
@@ -88,7 +92,9 @@ spart_data_init(
 
     memset(part_data, 0, sizeof(spart_data_t));
     part_data->min_cpu = ULONG_MAX;
+    part_data->max_cpu = 0;
     part_data->min_mem = ULONG_MAX;
+    part_data->max_mem = 0;
     part_data->partition = part_info;
     if ( part_info ) {
         unsigned int    node_idx = 0;
@@ -104,7 +110,9 @@ spart_data_init(
                 uint16_t        node_cpu_alloc = 0;
 
                 if ( part_data->min_mem > node_mem ) part_data->min_mem = node_mem;
+                if ( part_data->max_mem < node_mem ) part_data->max_mem = node_mem;
                 if ( part_data->min_cpu > node_cpu ) part_data->min_cpu = node_cpu;
+                if ( part_data->max_cpu < node_cpu ) part_data->max_cpu = node_cpu;
 
                 /* Error-check the nodeinfo fetch and exit if it fails */
                 if ( slurm_get_select_nodeinfo(node_array[i].select_nodeinfo, SELECT_NODEDATA_SUBCNT, NODE_STATE_ALLOCATED, &node_cpu_alloc) != 0 ) return 0;
@@ -144,7 +152,7 @@ typedef enum {
  *
  * @result an opaque pointer or pointer-sized value
  */
-typedef const void* (*spart_printer_context_alloc_callback)(void);
+typedef const void* (*spart_printer_context_alloc_callback)(const int argc, char * const argv[]);
 /*
  * @brief Partition summary, pre-process the partition summary list
  *
@@ -225,15 +233,35 @@ typedef struct spart_printer {
 
 typedef struct spart_printer_text_context {
     int     max_part_name_len;
+    int     should_show_node_minmax;
+    int     unit_multiplier;
 } spart_printer_text_context_t;
 
 const void*
-__spart_printer_text_context_alloc_callback()
+__spart_printer_text_context_alloc_callback(
+    const int       argc,
+    char * const    argv[]
+)
 {
     spart_printer_text_context_t   *context = malloc(sizeof(spart_printer_text_context_t));
 
     if ( context ) {
         context->max_part_name_len = 12;
+        context->should_show_node_minmax = 0;
+        context->unit_multiplier = 1024;
+        if ( argc ) {
+            int     argn = 1;
+
+            while ( argn < argc ) {
+                if ( (strcmp(argv[argn], "-m") == 0) || (strcmp(argv[argn], "--minmax") == 0) ) {
+                    context->should_show_node_minmax = 1;
+                }
+                else if ( strcmp(argv[argn], "--si-units") == 0 ) {
+                    context->unit_multiplier = 1000;
+                }
+                argn++;
+            }
+        }
     }
     return context;
 }
@@ -258,8 +286,13 @@ __spart_printer_text_header(
 {
     spart_printer_text_context_t   *CONTEXT = (spart_printer_text_context_t*)context;
 
-    printf("%-*s     FREE    TOTAL     FREE    TOTAL RESOURCE    OTHER   MIN   MAX  MAXJOBTIME    CPUS    NODE      FREE\n", CONTEXT->max_part_name_len, "");
-    printf("%-*s     CPUS     CPUS    NODES    NODES  PENDING  PENDING NODES NODES   DAY-HR:MN PERNODE  MEM(GB)  MEM(GB)\n", CONTEXT->max_part_name_len, "PARTITION");
+    if ( CONTEXT->should_show_node_minmax ) {
+        printf("%-*s     FREE    TOTAL     FREE    TOTAL    TOTAL RESOURCE    OTHER   MIN   MAX  MAXJOBTIME MIN CPU MAX CPU MIN MEM MAX MEM\n", CONTEXT->max_part_name_len, "");
+        printf("%-*s     CPUS     CPUS    NODES    NODES FREE MEM  PENDING  PENDING NODES NODES   DAY-HR:MN PERNODE PERNODE PERNODE PERNODE\n", CONTEXT->max_part_name_len, "PARTITION");
+    } else {
+        printf("%-*s     FREE    TOTAL     FREE    TOTAL    TOTAL RESOURCE    OTHER   MIN   MAX  MAXJOBTIME\n", CONTEXT->max_part_name_len, "");
+        printf("%-*s     CPUS     CPUS    NODES    NODES FREE MEM  PENDING  PENDING NODES NODES   DAY-HR:MN\n", CONTEXT->max_part_name_len, "PARTITION");
+    }
 }
 
 int
@@ -271,13 +304,14 @@ __spart_printer_text_print(
 {
     spart_printer_text_context_t   *CONTEXT = (spart_printer_text_context_t*)context;
 
-    printf ("%-*s %8lu %8lu %8lu %8lu %8lu %8lu %5lu ",
+    printf ("%-*s %8lu %8lu %8lu %8lu %8lu %8lu %8lu %5lu ",
             CONTEXT->max_part_name_len,
             part_data->partition->name,
             (unsigned long)part_data->free_cpu,
             (unsigned long)part_data->partition->total_cpus,
             (unsigned long)part_data->free_node,
             (unsigned long)part_data->partition->total_nodes,
+            (unsigned long)part_data->free_mem / CONTEXT->unit_multiplier,
             (unsigned long)part_data->pending_cpus_resources,
             (unsigned long)part_data->pending_cpus_other,
             (unsigned long)part_data->partition->min_nodes
@@ -288,7 +322,7 @@ __spart_printer_text_print(
         printf ("%5lu ", (unsigned long)part_data->partition->max_nodes);
     }
     if ( part_data->partition->max_time == INFINITE ) {
-        printf ("   NO-LIMIT %7lu %7lu %9lu\n", (unsigned long)part_data->min_cpu, (unsigned long)part_data->min_mem/1000, (unsigned long)part_data->free_mem/1000);
+        printf("   NO-LIMIT");
     } else {
         int         day, hour, minute;
 
@@ -297,11 +331,17 @@ __spart_printer_text_print(
         minute -= (day * 1440);
         hour = minute / 60;
         minute -= (hour * 60);
-        printf (" %4d-%02d:%02d %7lu %7lu %9lu\n",
-                day, hour, minute,
-                (unsigned long)part_data->min_cpu, (unsigned long)part_data->min_mem/1000, (unsigned long)part_data->free_mem/1000
+        printf(" %4d-%02d:%02d",
+                day, hour, minute
             );
     }
+    if ( CONTEXT->should_show_node_minmax ) {
+        printf(" %7lu %7lu %7lu %7lu",
+                (unsigned long)part_data->min_cpu, (unsigned long)part_data->max_cpu,
+                (unsigned long)part_data->min_mem / CONTEXT->unit_multiplier, (unsigned long)part_data->max_mem / CONTEXT->unit_multiplier
+            );
+    }
+    fputc('\n', stdout);
     return 1;
 }
 
@@ -324,7 +364,7 @@ __spart_printer_parseable_header(
     const void      *context
 )
 {
-    printf("PARTITION|FREE CPUS|TOTAL CPUS|FREE NODES|TOTAL NODES|RESOURCE PENDING, CPUS|OTHER PENDING, CPUS|RESOURCE PENDING, JOBS|OTHER PENDING, JOBS|MIN NODES|MAX NODES|MAXJOBTIME|CPUS PERNODE|NODE MEM|FREE MEM|TOTAL MEM\n");
+    printf("PARTITION|FREE CPUS|TOTAL CPUS|FREE NODES|TOTAL NODES|RESOURCE PENDING, CPUS|OTHER PENDING, CPUS|RESOURCE PENDING, JOBS|OTHER PENDING, JOBS|MIN NODES|MAX NODES|MAXJOBTIME|MIN CPUS PERNODE|MAX CPUS PERNODE|MIN MEM PERNODE|MAX MEM PERNODE|FREE MEM|TOTAL MEM\n");
 }
 
 int
@@ -357,8 +397,8 @@ __spart_printer_parseable_print(
         printf("%lu|", (unsigned long)part_data->partition->max_time);
     }
     printf(
-            "%lu|%lu|%lu|%lu\n",
-            (unsigned long)part_data->min_cpu, (unsigned long)part_data->min_mem, (unsigned long)part_data->free_mem, (unsigned long)part_data->total_mem
+            "%lu|%lu|%lu|%lu|%lu|%lu\n",
+            (unsigned long)part_data->min_cpu, (unsigned long)part_data->max_cpu, (unsigned long)part_data->min_mem, (unsigned long)part_data->max_mem, (unsigned long)part_data->free_mem, (unsigned long)part_data->total_mem
         );
     return 1;
 }
@@ -399,8 +439,8 @@ __spart_printer_json_print(
             "\"pending_resources\":{\"cpus\":%lu,\"jobs\":%lu},"
             "\"pending_other\":{\"cpus\":%lu,\"jobs\":%lu},"
             "\"min_nodes\":%lu,"
-            "\"min_cpu\":%lu,"
-            "\"min_mem\":%lu,"
+            "\"cpu_per_node\":[%lu,%lu],"
+            "\"mem_per_node\":[%lu,%lu],"
             "\"free_mem\":%lu,"
             "\"total_mem\":%lu,"
             ,
@@ -411,8 +451,8 @@ __spart_printer_json_print(
             (unsigned long)part_data->pending_cpus_resources, (unsigned long)part_data->pending_jobs_resources,
             (unsigned long)part_data->pending_cpus_other, (unsigned long)part_data->pending_jobs_other,
             (unsigned long)part_data->partition->min_nodes,
-            (unsigned long)part_data->min_cpu,
-            (unsigned long)part_data->min_mem,
+            (unsigned long)part_data->min_cpu, (unsigned long)part_data->max_cpu,
+            (unsigned long)part_data->min_mem, (unsigned long)part_data->max_mem,
             (unsigned long)part_data->free_mem,
             (unsigned long)part_data->total_mem
         );
@@ -469,8 +509,8 @@ __spart_printer_yaml_print(
             "        cpus: %lu\n"
             "        jobs: %lu\n"
             "    min_nodes: %lu\n"
-            "    min_cpu: %lu\n"
-            "    min_mem: %lu\n"
+            "    cpu_per_node: [%lu, %lu]\n"
+            "    mem_per_node: [%lu, %lu]\n"
             "    free_mem: %lu\n"
             "    total_mem: %lu\n"
             ,
@@ -481,8 +521,8 @@ __spart_printer_yaml_print(
             (unsigned long)part_data->pending_cpus_resources, (unsigned long)part_data->pending_jobs_resources,
             (unsigned long)part_data->pending_cpus_other, (unsigned long)part_data->pending_jobs_other,
             (unsigned long)part_data->partition->min_nodes,
-            (unsigned long)part_data->min_cpu,
-            (unsigned long)part_data->min_mem,
+            (unsigned long)part_data->min_cpu, (unsigned long)part_data->max_cpu,
+            (unsigned long)part_data->min_mem, (unsigned long)part_data->max_mem,
             (unsigned long)part_data->free_mem,
             (unsigned long)part_data->total_mem
         );
@@ -528,6 +568,11 @@ usage(
             "                               specified format\n"
             "    -p/--partition <part-list> select specific partitions to include\n"
             "                               in the summary\n"
+            "    -m/--minmax                for the standard text format, include\n"
+            "                               per-node min/max values for CPU count and\n"
+            "                               memory size\n"
+            "    --si-units                 for the standard text format, display\n"
+            "                               memory sizes in base-10 units (MB not MiB)\n"
             "\n"
             "    <format>:\n\n"
             "      text                     column-aligned textual table\n"
@@ -899,7 +944,7 @@ main(
      * (1) Allocate contextual storage for the chosen format
      */
     if ( printer->context_alloc_fn ) {
-        printer_context = printer->context_alloc_fn();
+        printer_context = printer->context_alloc_fn(argc, argv);
         if ( ! printer_context ) {
             fprintf(stderr, "unable to allocate storage for printer callback\n");
             exit(ENOMEM);
